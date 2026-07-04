@@ -156,19 +156,15 @@ def normalizar(v) -> str | None:
     s = str(v).strip()
     return None if (not s or s.lower() == 'nan' or s in ('[]', '.')) else s
 
-def priorizar_por_columna(df: pd.DataFrame, columna: str) -> pd.DataFrame:
+def filtrar_por_columna(df: pd.DataFrame, columna: str, valor: str) -> pd.DataFrame:
     """
-    Reordena las filas para que las que comparten valor en `columna` se procesen
-    primero, priorizando los grupos mas frecuentes. No elimina filas, solo
-    cambia el orden en que se procesan.
+    Filtra el DataFrame dejando solo las filas donde `columna` es igual a `valor`.
+    Si columna o valor no son validos, o valor es '(todos)', devuelve el
+    DataFrame completo sin filtrar.
     """
-    if columna not in df.columns:
+    if not columna or columna not in df.columns or not valor or valor == '(todos)':
         return df
-    frecuencias = df[columna].value_counts()
-    df = df.copy()
-    df['_prioridad_tmp'] = df[columna].map(frecuencias).fillna(0)
-    df = df.sort_values('_prioridad_tmp', ascending=False).drop(columns='_prioridad_tmp')
-    return df.reset_index(drop=True)
+    return df[df[columna].astype(str) == str(valor)].reset_index(drop=True)
 
 def cargar_dataframe(ruta: str) -> pd.DataFrame:
     """
@@ -535,6 +531,7 @@ class App(tk.Tk):
       _build_api_key_section(card)
       _build_file_section(card)
       _build_column_section(card)
+      _build_priorizacion_section(card)
       _build_prompt_section(card)
       _build_action_buttons()
       _build_progress_and_log()
@@ -607,8 +604,8 @@ class App(tk.Tk):
         INPUT  = "#eef2f7"  # Fondo de campos editables
 
         s.configure("TFrame",        background=CARD)
-        s.configure("TLabel",        background=CARD,  foreground=FG,  font=("Segoe UI", 9))
-        s.configure("Sub.TLabel",    background=CARD,  foreground=FG2, font=("Segoe UI", 8))
+        s.configure("TLabel",        background=CARD,  foreground=FG,  font=("Segoe UI", 8))
+        s.configure("Sub.TLabel",    background=CARD,  foreground=FG2, font=("Segoe UI", 7))
         s.configure("TCombobox",     fieldbackground=INPUT, foreground=FG,
                     background=INPUT, selectbackground=BLUE, selectforeground="#fff",
                     borderwidth=0)
@@ -616,16 +613,16 @@ class App(tk.Tk):
               fieldbackground=[("readonly", INPUT)],
               foreground=[("readonly", FG)])
         s.configure("Start.TButton", background=ORANGE, foreground="white",
-                    font=("Segoe UI", 10, "bold"), padding=(12, 5), borderwidth=0)
+                    font=("Segoe UI", 9, "bold"), padding=(12, 5), borderwidth=0)
         s.map("Start.TButton",
               background=[("active", "#c44412"), ("disabled", "#b0b8c4")])
         # Botón Detener: rojo, se habilita sólo mientras hay una extracción en curso
         s.configure("Stop.TButton",  background=RED, foreground="white",
-                    font=("Segoe UI", 10, "bold"), padding=(12, 5), borderwidth=0)
+                    font=("Segoe UI", 9, "bold"), padding=(12, 5), borderwidth=0)
         s.map("Stop.TButton",
               background=[("active", "#922b21"), ("disabled", "#b0b8c4")])
         s.configure("File.TButton",  background=BLUE, foreground="white",
-                    font=("Segoe UI", 8), padding=(5, 0), borderwidth=0)
+                    font=("Segoe UI", 7), padding=(5, 0), borderwidth=0)
         s.map("File.TButton",
               background=[("active", "#145080")])
         s.configure("TProgressbar",  troughcolor=BORDER, background=ORANGE,
@@ -640,7 +637,7 @@ class App(tk.Tk):
         """Crea un label de sección (negrita navy) en la fila indicada del grid."""
         tk.Label(parent, text=text,
                  bg=self._colors["CARD"], fg=self._colors["NAVY"],
-                 font=("Segoe UI", 9, "bold")).grid(
+                 font=("Segoe UI", 8, "bold")).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(5, 1))
 
     def _uniform_frame(self, parent, row: int) -> tk.Frame:
@@ -671,7 +668,7 @@ class App(tk.Tk):
         self.key_var = tk.StringVar(value=self.config.get("api_key", ""))
         self.key_entry = tk.Entry(key_f, textvariable=self.key_var, show="•",
                                   bg=c["INPUT"], fg=c["FG"], insertbackground=c["FG"],
-                                  relief="flat", font=("Segoe UI", 9), bd=0,
+                                  relief="flat", font=("Segoe UI", 8), bd=0,
                                   highlightthickness=1,
                                   highlightbackground=c["BORDER"],
                                   highlightcolor=c["BLUE"])
@@ -706,7 +703,7 @@ class App(tk.Tk):
         self.archivo_var = tk.StringVar(value="Ningún archivo seleccionado")
         tk.Label(file_f, textvariable=self.archivo_var,
                  bg=c["INPUT"], fg=c["FG2"],
-                 font=("Segoe UI", 9), anchor="w", padx=6,
+                 font=("Segoe UI", 8), anchor="w", padx=6,
                  highlightthickness=1,
                  highlightbackground=c["BORDER"]).grid(row=0, column=0, sticky="nsew", padx=(0, 4))
 
@@ -726,8 +723,112 @@ class App(tk.Tk):
         self.col_var = tk.StringVar()
         # El combo arranca deshabilitado; se activa al cargar un archivo válido
         self.col_combo = ttk.Combobox(col_f, textvariable=self.col_var,
-                                      state="disabled", font=("Segoe UI", 9))
+                                      state="disabled", font=("Segoe UI", 8))
         self.col_combo.grid(row=0, column=0, sticky="nsew")
+
+    def _build_priorizacion_section(self, card: ttk.Frame) -> None:
+        """
+        Construye el boton que abre el popup de busqueda avanzada (filtro
+        opcional por columna y valor). El estado elegido se guarda en
+        self.prioridad_var / self.valor_filtro_var y se resume en un label
+        junto al boton para que el usuario sepa si hay un filtro activo.
+        """
+        c = self._colors
+        self.prioridad_var = tk.StringVar(value="")
+        self.valor_filtro_var = tk.StringVar(value="")
+        self.filtro_status_var = tk.StringVar(value="Sin filtro")
+
+        adv_f = tk.Frame(card, bg=c["CARD"])
+        adv_f.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(4, 2))
+
+        self.btn_busqueda_avanzada = ttk.Button(
+            adv_f, text="🔍  Búsqueda avanzada", style="File.TButton",
+            command=self._abrir_busqueda_avanzada)
+        self.btn_busqueda_avanzada.pack(side="left")
+
+        tk.Label(adv_f, textvariable=self.filtro_status_var,
+                 bg=c["CARD"], fg=c["FG2"], font=("Segoe UI", 7)).pack(side="left", padx=(8, 0))
+
+    def _abrir_busqueda_avanzada(self) -> None:
+        """
+        Abre un popup (Toplevel) para elegir una columna y un valor especifico
+        por el cual filtrar las filas antes de extraer. Los cambios solo se
+        guardan si el usuario presiona "Aplicar"; "Cancelar" descarta todo.
+        """
+        if self.df is None:
+            messagebox.showwarning("Sin archivo", "Primero selecciona un archivo.")
+            return
+
+        c = self._colors
+        popup = tk.Toplevel(self)
+        popup.title("Búsqueda avanzada")
+        popup.configure(bg=c["CARD"])
+        popup.resizable(False, False)
+        popup.transient(self)
+        popup.grab_set()
+
+        tk.Label(popup, text="⭐  Filtrar por columna", bg=c["CARD"], fg=c["NAVY"],
+                 font=("Segoe UI", 9, "bold")).grid(row=0, column=0, columnspan=2,
+                                                      sticky="w", padx=12, pady=(12, 2))
+
+        columnas = self.df.columns.tolist()
+        col_var_local = tk.StringVar(value=self.prioridad_var.get() or "(ninguna)")
+        col_combo = ttk.Combobox(popup, textvariable=col_var_local,
+                                 values=["(ninguna)"] + columnas,
+                                 state="readonly", font=("Segoe UI", 8), width=30)
+        col_combo.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12)
+
+        tk.Label(popup, text="🔎  Valor a extraer", bg=c["CARD"], fg=c["NAVY"],
+                 font=("Segoe UI", 9, "bold")).grid(row=2, column=0, columnspan=2,
+                                                      sticky="w", padx=12, pady=(10, 2))
+
+        valor_var_local = tk.StringVar(value=self.valor_filtro_var.get() or "")
+        valor_combo = ttk.Combobox(popup, textvariable=valor_var_local,
+                                   state="disabled", font=("Segoe UI", 8), width=30)
+        valor_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=12)
+
+        def _refrescar_valores(event=None):
+            columna = col_var_local.get()
+            if not columna or columna == "(ninguna)":
+                valor_combo["values"] = []
+                valor_var_local.set("")
+                valor_combo.config(state="disabled")
+                return
+            valores = sorted(self.df[columna].dropna().astype(str).unique().tolist())
+            valor_combo["values"] = ["(todos)"] + valores
+            actual = self.valor_filtro_var.get()
+            valor_var_local.set(actual if actual in valores or actual == "(todos)" else "(todos)")
+            valor_combo.config(state="readonly")
+
+        col_combo.bind("<<ComboboxSelected>>", _refrescar_valores)
+        if col_var_local.get() != "(ninguna)":
+            _refrescar_valores()
+
+        def _aplicar():
+            self.prioridad_var.set(col_var_local.get())
+            self.valor_filtro_var.set(valor_var_local.get())
+            if col_var_local.get() and col_var_local.get() != "(ninguna)":
+                self.filtro_status_var.set(f"Filtro: {col_var_local.get()} = {valor_var_local.get()}")
+            else:
+                self.filtro_status_var.set("Sin filtro")
+            popup.destroy()
+
+        def _cancelar():
+            popup.destroy()
+
+        btn_row = tk.Frame(popup, bg=c["CARD"])
+        btn_row.grid(row=4, column=0, columnspan=2, sticky="ew", padx=12, pady=(12, 12))
+        ttk.Button(btn_row, text="Aplicar", style="Start.TButton",
+                  command=_aplicar).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        ttk.Button(btn_row, text="Cancelar", style="File.TButton",
+                  command=_cancelar).pack(side="left", expand=True, fill="x", padx=(4, 0))
+
+        popup.columnconfigure(0, weight=1)
+        popup.update_idletasks()
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - popup.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - popup.winfo_height()) // 2
+        popup.geometry(f"+{x}+{y}")
 
     def _build_prompt_section(self, card: ttk.Frame) -> None:
         """
@@ -737,22 +838,22 @@ class App(tk.Tk):
         """
         c = self._colors
         prompt_hdr = tk.Frame(card, bg=c["CARD"])
-        prompt_hdr.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(6, 1))
+        prompt_hdr.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(6, 1))
         tk.Label(prompt_hdr, text="💬  Prompt (editable)",
                  bg=c["CARD"], fg=c["FG"],
-                 font=("Segoe UI", 9, "bold")).pack(side="left")
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
         # Botón para restaurar el prompt al valor por defecto (DEFAULT_PROMPT)
         # Referencia guardada para deshabilitar/habilitar en _iniciar/_finalizar
         self.btn_restaurar = tk.Button(prompt_hdr, text="↺ Restaurar",
                                        bg=c["INPUT"], fg=c["BLUE"],
-                                       font=("Segoe UI", 8), relief="flat", bd=0,
+                                       font=("Segoe UI", 7), relief="flat", bd=0,
                                        cursor="hand2", padx=4,
                                        command=self._restaurar_prompt)
         self.btn_restaurar.pack(side="right")
 
         # Marco con borde para el área de texto del prompt
         prompt_border = tk.Frame(card, bg=c["BORDER"], bd=1)
-        prompt_border.grid(row=9, column=0, columnspan=2, sticky="nsew", pady=(0, 4))
+        prompt_border.grid(row=10, column=0, columnspan=2, sticky="nsew", pady=(0, 4))
         prompt_inner = tk.Frame(prompt_border, bg=c["BORDER"])
         prompt_inner.pack(fill="both", expand=True)
         sbp = ttk.Scrollbar(prompt_inner)
@@ -760,7 +861,7 @@ class App(tk.Tk):
         self.prompt_text = tk.Text(prompt_inner, height=7,
                                    bg=c["INPUT"], fg=c["FG"],
                                    insertbackground=c["FG"], relief="flat",
-                                   font=("Courier New", 8), padx=6, pady=4,
+                                   font=("Courier New", 7), padx=6, pady=4,
                                    wrap="word", highlightthickness=0,
                                    yscrollcommand=sbp.set)
         self.prompt_text.pack(fill="both", expand=True, side="left")
@@ -812,7 +913,7 @@ class App(tk.Tk):
             textvariable=self.eta_var,
             bg=c["BG"],
             fg=c["FG2"],
-            font=("Segoe UI", 8),
+            font=("Segoe UI", 7),
             anchor="center",
         )
         self.eta_label.pack(fill="x", padx=14, pady=(1, 0))
@@ -823,13 +924,13 @@ class App(tk.Tk):
         log_outer.pack(fill="both", expand=True, padx=14, pady=(4, 10))
         tk.Label(log_outer, text="💻 Registro de actividad",
                  bg=c["BG"], fg=c["FG2"],
-                 font=("Segoe UI", 8, "bold")).pack(anchor="w")
+                 font=("Segoe UI", 7, "bold")).pack(anchor="w")
         log_border = tk.Frame(log_outer, bg=c["BORDER"], bd=1)
         log_border.pack(fill="both", expand=True, pady=(2, 0))
         self.log_box = tk.Text(log_border, height=9,
                                bg=c["NAVY"], fg="#7ab4d8",
                                insertbackground=c["FG"], relief="flat",
-                               font=("Courier New", 8), state="disabled",
+                               font=("Courier New", 7), state="disabled",
                                padx=6, pady=4)
         sb = ttk.Scrollbar(log_border)
         sb.pack(side="right", fill="y")
@@ -849,10 +950,10 @@ class App(tk.Tk):
         header.pack_propagate(False)
         tk.Label(header, text="Extractor de significados en textos",
                  bg=c["NAVY"], fg="white",
-                 font=("Segoe UI", 13, "bold")).pack(side="left", padx=16)
+                 font=("Segoe UI", 12, "bold")).pack(side="left", padx=16)
         tk.Label(header, text="powered by Ollama",
                  bg=c["NAVY"], fg="#7ab4d8",
-                 font=("Segoe UI", 8)).pack(side="left")
+                 font=("Segoe UI", 7)).pack(side="left")
 
         # Franja naranja decorativa bajo el header
         tk.Frame(self, bg=c["ORANGE"], height=4).pack(fill="x")
@@ -861,7 +962,7 @@ class App(tk.Tk):
         card = ttk.Frame(self, padding=(14, 8, 14, 4))
         card.pack(fill="both", expand=True, padx=14, pady=6)
         card.columnconfigure(0, weight=1)
-        card.rowconfigure(9, weight=1)  # la fila del prompt se expande al redimensionar
+        card.rowconfigure(10, weight=1)  # la fila del prompt se expande al redimensionar
 
         # Separador naranja en la parte superior de la tarjeta
         tk.Frame(card, bg=c["ORANGE"], height=2).grid(
@@ -870,6 +971,7 @@ class App(tk.Tk):
         self._build_api_key_section(card)
         self._build_file_section(card)
         self._build_column_section(card)
+        self._build_priorizacion_section(card)
         self._build_prompt_section(card)
 
         self._build_action_buttons()
@@ -913,6 +1015,9 @@ class App(tk.Tk):
             self.col_combo["values"] = columnas
             self.col_combo.set(columnas[0])
             self.col_combo.config(state="readonly")
+            self.prioridad_var.set("")
+            self.valor_filtro_var.set("")
+            self.filtro_status_var.set("Sin filtro")
             self._log(f"Archivo cargado: {nombre}  |  {len(self.df)} filas  |  {len(columnas)} columnas")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo leer el archivo:\n{e}")
@@ -1019,6 +1124,7 @@ class App(tk.Tk):
         self.chk_show_key.config(state="disabled") # bloquear checkbox "Mostrar"
         self.btn_file.config(state="disabled")     # bloquear botón "Buscar…"
         self.col_combo.config(state="disabled")    # bloquear combo de columna
+        self.btn_busqueda_avanzada.config(state="disabled")
         self.prompt_text.config(state="disabled")  # bloquear área de texto del prompt
         self.btn_restaurar.config(state="disabled")# bloquear botón "↺ Restaurar"
         # ─────────────────────────────────────────────────────────────────────
@@ -1194,6 +1300,13 @@ class App(tk.Tk):
             # FIX: trabajar sobre una copia para no mutar self.df entre sesiones
             df_trabajo = self.df.copy()
 
+            columna_filtro = self.prioridad_var.get()
+            valor_filtro   = self.valor_filtro_var.get()
+            if columna_filtro and columna_filtro != "(ninguna)":
+                filas_antes = len(df_trabajo)
+                df_trabajo = filtrar_por_columna(df_trabajo, columna_filtro, valor_filtro)
+                self._log(f"Filtrado '{columna_filtro}' = '{valor_filtro}': {filas_antes} -> {len(df_trabajo)} filas")
+
             def _batch_progress(completados: int, total: int) -> None:
                 # Actualiza barra de progreso desde el hilo principal
                 self.after(0, lambda: self.progress.config(maximum=total, value=completados))
@@ -1266,6 +1379,7 @@ class App(tk.Tk):
         # de lo contrario se mantiene "disabled" para no mostrar una lista vacía.
         if self.df is not None:
             self.col_combo.config(state="readonly")
+        self.btn_busqueda_avanzada.config(state="normal")
         # ─────────────────────────────────────────────────────────────────────
 
 
