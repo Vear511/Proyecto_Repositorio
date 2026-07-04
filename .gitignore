@@ -3,3 +3,4 @@ __pycache__/
 .clasificador_config.json
 venv/
 *.xlsx
+.venv/
