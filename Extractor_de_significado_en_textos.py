@@ -156,6 +156,19 @@ def normalizar(v) -> str | None:
     s = str(v).strip()
     return None if (not s or s.lower() == 'nan' or s in ('[]', '.')) else s
 
+def priorizar_por_columna(df: pd.DataFrame, columna: str) -> pd.DataFrame:
+    """
+    Reordena las filas para que las que comparten valor en `columna` se procesen
+    primero, priorizando los grupos mas frecuentes. No elimina filas, solo
+    cambia el orden en que se procesan.
+    """
+    if columna not in df.columns:
+        return df
+    frecuencias = df[columna].value_counts()
+    df = df.copy()
+    df['_prioridad_tmp'] = df[columna].map(frecuencias).fillna(0)
+    df = df.sort_values('_prioridad_tmp', ascending=False).drop(columns='_prioridad_tmp')
+    return df.reset_index(drop=True)
 
 def cargar_dataframe(ruta: str) -> pd.DataFrame:
     """
