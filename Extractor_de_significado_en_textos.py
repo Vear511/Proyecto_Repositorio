@@ -166,6 +166,18 @@ def filtrar_por_columna(df: pd.DataFrame, columna: str, valor: str) -> pd.DataFr
         return df
     return df[df[columna].astype(str) == str(valor)].reset_index(drop=True)
 
+def filtrar_por_rango(df: pd.DataFrame, desde: int, hasta: int) -> pd.DataFrame:
+    """
+    Restringe el DataFrame a un rango especifico de filas (1-indexado, inclusive).
+    Si los valores son invalidos o vacios, devuelve el DataFrame completo.
+    """
+    n = len(df)
+    ini = max(1, desde) if desde else 1
+    fin = min(n, hasta) if hasta else n
+    if ini > fin:
+        return df
+    return df.iloc[ini-1:fin].reset_index(drop=True)
+
 def cargar_dataframe(ruta: str) -> pd.DataFrame:
     """
     Carga un archivo tabular en un DataFrame de pandas.
@@ -737,6 +749,8 @@ class App(tk.Tk):
         self.prioridad_var = tk.StringVar(value="")
         self.valor_filtro_var = tk.StringVar(value="")
         self.filtro_status_var = tk.StringVar(value="Sin filtro")
+        self.desde_var = tk.StringVar(value="")
+        self.hasta_var = tk.StringVar(value="")
 
         adv_f = tk.Frame(card, bg=c["CARD"])
         adv_f.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(4, 2))
@@ -786,6 +800,24 @@ class App(tk.Tk):
         valor_combo = ttk.Combobox(popup, textvariable=valor_var_local,
                                    state="disabled", font=("Segoe UI", 8), width=40)
         valor_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=12)
+        tk.Label(popup, text="📐  Rango de filas (opcional)", bg=c["CARD"], fg=c["NAVY"],
+                 font=("Segoe UI", 9, "bold")).grid(row=4, column=0, columnspan=2,
+                                                      sticky="w", padx=12, pady=(10, 2))
+
+        rango_f = tk.Frame(popup, bg=c["CARD"])
+        rango_f.grid(row=5, column=0, columnspan=2, sticky="ew", padx=12)
+
+        desde_var_local = tk.StringVar(value=self.desde_var.get())
+        hasta_var_local = tk.StringVar(value=self.hasta_var.get())
+
+        tk.Label(rango_f, text="Desde:", bg=c["CARD"], fg=c["FG"],
+                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Entry(rango_f, textvariable=desde_var_local, width=6,
+                 font=("Segoe UI", 8)).pack(side="left", padx=(4, 12))
+        tk.Label(rango_f, text="Hasta:", bg=c["CARD"], fg=c["FG"],
+                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Entry(rango_f, textvariable=hasta_var_local, width=6,
+                 font=("Segoe UI", 8)).pack(side="left", padx=(4, 0))
 
         def _refrescar_valores(event=None):
             columna = col_var_local.get()
@@ -807,16 +839,20 @@ class App(tk.Tk):
         def _aplicar():
             self.prioridad_var.set(col_var_local.get())
             self.valor_filtro_var.set(valor_var_local.get())
+            self.desde_var.set(desde_var_local.get().strip())
+            self.hasta_var.set(hasta_var_local.get().strip())
+            partes = []
             if col_var_local.get() and col_var_local.get() != "(ninguna)":
-                self.filtro_status_var.set(f"🔎 Filtro activo: {col_var_local.get()} = {valor_var_local.get()}")
-            else:
-                self.filtro_status_var.set("Sin filtro aplicado")
+                partes.append(f"{col_var_local.get()} = {valor_var_local.get()}")
+            if desde_var_local.get().strip() or hasta_var_local.get().strip():
+                partes.append(f"filas [{desde_var_local.get().strip() or '1'}:{hasta_var_local.get().strip() or 'fin'}]")
+            self.filtro_status_var.set("🔎 Filtro activo: " + " | ".join(partes) if partes else "Sin filtro aplicado")
 
         def _cancelar():
             popup.destroy()
 
         btn_row = tk.Frame(popup, bg=c["CARD"])
-        btn_row.grid(row=4, column=0, columnspan=2, sticky="ew", padx=12, pady=(12, 12))
+        btn_row.grid(row=6, column=0, columnspan=2, sticky="ew", padx=12, pady=(12, 12))
         ttk.Button(btn_row, text="Aplicar", style="Start.TButton",
                   command=_aplicar).pack(side="left", expand=True, fill="x", padx=(0, 4))
         ttk.Button(btn_row, text="Cancelar", style="File.TButton",
@@ -1305,6 +1341,17 @@ class App(tk.Tk):
                 filas_antes = len(df_trabajo)
                 df_trabajo = filtrar_por_columna(df_trabajo, columna_filtro, valor_filtro)
                 self._log(f"Filtrado '{columna_filtro}' = '{valor_filtro}': {filas_antes} -> {len(df_trabajo)} filas")
+            desde_str = self.desde_var.get().strip()
+            hasta_str = self.hasta_var.get().strip()
+            if desde_str or hasta_str:
+                try:
+                    desde_int = int(desde_str) if desde_str else None
+                    hasta_int = int(hasta_str) if hasta_str else None
+                    filas_antes_rango = len(df_trabajo)
+                    df_trabajo = filtrar_por_rango(df_trabajo, desde_int, hasta_int)
+                    self._log(f"Rango aplicado [{desde_str or '1'}:{hasta_str or 'fin'}]: {filas_antes_rango} -> {len(df_trabajo)} filas")
+                except ValueError:
+                    self._log(f"⚠ Rango invalido ('{desde_str}', '{hasta_str}'), se ignora.")
 
             def _batch_progress(completados: int, total: int) -> None:
                 # Actualiza barra de progreso desde el hilo principal
