@@ -7,6 +7,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 # ─────────────────────────────────────────────
@@ -177,6 +180,23 @@ def filtrar_por_rango(df: pd.DataFrame, desde: int, hasta: int) -> pd.DataFrame:
     if ini > fin:
         return df
     return df.iloc[ini-1:fin].reset_index(drop=True)
+
+def generar_grafico_resultados(df: pd.DataFrame, columna_resultado: str, ruta_salida: str) -> str:
+    """
+    Genera un grafico de barras con el conteo de cada categoria en columna_resultado
+    y lo guarda como imagen PNG en ruta_salida. Devuelve la ruta del archivo generado.
+    """
+    conteo = df[columna_resultado].value_counts()
+    plt.figure(figsize=(10, 6))
+    conteo.plot(kind="bar", color="#1a6496")
+    plt.title("Distribucion de categorias extraidas")
+    plt.xlabel("Categoria")
+    plt.ylabel("Cantidad de filas")
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(ruta_salida)
+    plt.close()
+    return ruta_salida
 
 def cargar_dataframe(ruta: str) -> pd.DataFrame:
     """
@@ -762,6 +782,14 @@ class App(tk.Tk):
 
         tk.Label(adv_f, textvariable=self.filtro_status_var,
                  bg=c["CARD"], fg=c["FG2"], font=("Segoe UI", 7)).pack(side="left", padx=(8, 0))
+        self.generar_grafico_var = tk.BooleanVar(value=False)
+        self.chk_grafico = tk.Checkbutton(
+            card, text="📊  Generar gráfico de resultados al finalizar",
+            variable=self.generar_grafico_var,
+            bg=c["CARD"], fg=c["FG"],
+            activebackground=c["CARD"], activeforeground=c["FG"],
+            selectcolor=c["INPUT"], relief="flat", font=("Segoe UI", 8))
+        self.chk_grafico.grid(row=9, column=0, columnspan=2, sticky="w", pady=(2, 0))
 
     def _abrir_busqueda_avanzada(self) -> None:
         """
@@ -873,7 +901,7 @@ class App(tk.Tk):
         """
         c = self._colors
         prompt_hdr = tk.Frame(card, bg=c["CARD"])
-        prompt_hdr.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(6, 1))
+        prompt_hdr.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(6, 1))
         tk.Label(prompt_hdr, text="💬  Prompt (editable)",
                  bg=c["CARD"], fg=c["FG"],
                  font=("Segoe UI", 8, "bold")).pack(side="left")
@@ -888,7 +916,7 @@ class App(tk.Tk):
 
         # Marco con borde para el área de texto del prompt
         prompt_border = tk.Frame(card, bg=c["BORDER"], bd=1)
-        prompt_border.grid(row=10, column=0, columnspan=2, sticky="nsew", pady=(0, 4))
+        prompt_border.grid(row=11, column=0, columnspan=2, sticky="nsew", pady=(0, 4))
         prompt_inner = tk.Frame(prompt_border, bg=c["BORDER"])
         prompt_inner.pack(fill="both", expand=True)
         sbp = ttk.Scrollbar(prompt_inner)
@@ -997,7 +1025,7 @@ class App(tk.Tk):
         card = ttk.Frame(self, padding=(14, 8, 14, 4))
         card.pack(fill="both", expand=True, padx=14, pady=6)
         card.columnconfigure(0, weight=1)
-        card.rowconfigure(10, weight=1)  # la fila del prompt se expande al redimensionar
+        card.rowconfigure(11, weight=1)  # la fila del prompt se expande al redimensionar
 
         # Separador naranja en la parte superior de la tarjeta
         tk.Frame(card, bg=c["ORANGE"], height=2).grid(
@@ -1160,6 +1188,7 @@ class App(tk.Tk):
         self.btn_file.config(state="disabled")     # bloquear botón "Buscar…"
         self.col_combo.config(state="disabled")    # bloquear combo de columna
         self.btn_busqueda_avanzada.config(state="disabled")
+        self.chk_grafico.config(state="disabled")
         self.prompt_text.config(state="disabled")  # bloquear área de texto del prompt
         self.btn_restaurar.config(state="disabled")# bloquear botón "↺ Restaurar"
         # ─────────────────────────────────────────────────────────────────────
@@ -1213,15 +1242,29 @@ class App(tk.Tk):
     ) -> None:
         """
         Persiste el DataFrame completo como '<nombre>_Extraccion.xlsx'
-        y notifica al usuario con un messagebox de éxito.
+        y notifica al usuario con un messagebox de éxito. Si el usuario marco
+        la casilla correspondiente, tambien genera un grafico de barras con
+        la distribucion de categorias extraidas.
         """
         ruta_salida = os.path.join(carpeta, f"{nombre_base}_Extraccion.xlsx")
         df_trabajo.to_excel(ruta_salida, index=False)
         self._log(f"Archivo guardado: {ruta_salida}")
+
+        ruta_grafico = None
+        if self.generar_grafico_var.get():
+            try:
+                ruta_grafico = os.path.join(carpeta, f"{nombre_base}_grafico.png")
+                generar_grafico_resultados(df_trabajo, 'respuesta_LLM', ruta_grafico)
+                self._log(f"Gráfico generado: {ruta_grafico}")
+            except Exception as e:
+                self._log(f"⚠ No se pudo generar el gráfico: {e}")
+
+        mensaje_grafico = f"\nGráfico guardado en:\n{ruta_grafico}\n" if ruta_grafico else ""
         self.after(0, lambda: messagebox.showinfo(
             "¡Listo!",
             f"Extracción completada.\n\n"
-            f"Archivo guardado en:\n{ruta_salida}\n\n"
+            f"Archivo guardado en:\n{ruta_salida}\n"
+            f"{mensaje_grafico}\n"
             f"Filas procesadas: {len(df_trabajo)}"
         ))
 
@@ -1426,6 +1469,7 @@ class App(tk.Tk):
         if self.df is not None:
             self.col_combo.config(state="readonly")
         self.btn_busqueda_avanzada.config(state="normal")
+        self.chk_grafico.config(state="normal")
         # ─────────────────────────────────────────────────────────────────────
 
 
