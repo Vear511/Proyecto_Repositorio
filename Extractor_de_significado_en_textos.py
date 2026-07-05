@@ -166,6 +166,18 @@ def filtrar_por_columna(df: pd.DataFrame, columna: str, valor: str) -> pd.DataFr
         return df
     return df[df[columna].astype(str) == str(valor)].reset_index(drop=True)
 
+def filtrar_por_rango(df: pd.DataFrame, desde: int, hasta: int) -> pd.DataFrame:
+    """
+    Restringe el DataFrame a un rango especifico de filas (1-indexado, inclusive).
+    Si los valores son invalidos o vacios, devuelve el DataFrame completo.
+    """
+    n = len(df)
+    ini = max(1, desde) if desde else 1
+    fin = min(n, hasta) if hasta else n
+    if ini > fin:
+        return df
+    return df.iloc[ini-1:fin].reset_index(drop=True)
+
 def cargar_dataframe(ruta: str) -> pd.DataFrame:
     """
     Carga un archivo tabular en un DataFrame de pandas.
