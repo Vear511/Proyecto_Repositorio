@@ -775,7 +775,7 @@ class App(tk.Tk):
         col_var_local = tk.StringVar(value=self.prioridad_var.get() or "(ninguna)")
         col_combo = ttk.Combobox(popup, textvariable=col_var_local,
                                  values=["(ninguna)"] + columnas,
-                                 state="readonly", font=("Segoe UI", 8), width=30)
+                                 state="readonly", font=("Segoe UI", 8), width=40)
         col_combo.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12)
 
         tk.Label(popup, text="🔎  Valor a extraer", bg=c["CARD"], fg=c["NAVY"],
@@ -784,7 +784,7 @@ class App(tk.Tk):
 
         valor_var_local = tk.StringVar(value=self.valor_filtro_var.get() or "")
         valor_combo = ttk.Combobox(popup, textvariable=valor_var_local,
-                                   state="disabled", font=("Segoe UI", 8), width=30)
+                                   state="disabled", font=("Segoe UI", 8), width=40)
         valor_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=12)
 
         def _refrescar_valores(event=None):
