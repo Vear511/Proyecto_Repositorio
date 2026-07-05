@@ -1341,17 +1341,17 @@ class App(tk.Tk):
                 filas_antes = len(df_trabajo)
                 df_trabajo = filtrar_por_columna(df_trabajo, columna_filtro, valor_filtro)
                 self._log(f"Filtrado '{columna_filtro}' = '{valor_filtro}': {filas_antes} -> {len(df_trabajo)} filas")
-                desde_str = self.desde_var.get().strip()
-                hasta_str = self.hasta_var.get().strip()
-                if desde_str or hasta_str:
-                    try:
-                        desde_int = int(desde_str) if desde_str else None
-                        hasta_int = int(hasta_str) if hasta_str else None
-                        filas_antes_rango = len(df_trabajo)
-                        df_trabajo = filtrar_por_rango(df_trabajo, desde_int, hasta_int)
-                        self._log(f"Rango aplicado [{desde_str or '1'}:{hasta_str or 'fin'}]: {filas_antes_rango} -> {len(df_trabajo)} filas")
-                    except ValueError:
-                        self._log(f"⚠ Rango invalido ('{desde_str}', '{hasta_str}'), se ignora.")
+            desde_str = self.desde_var.get().strip()
+            hasta_str = self.hasta_var.get().strip()
+            if desde_str or hasta_str:
+                try:
+                    desde_int = int(desde_str) if desde_str else None
+                    hasta_int = int(hasta_str) if hasta_str else None
+                    filas_antes_rango = len(df_trabajo)
+                    df_trabajo = filtrar_por_rango(df_trabajo, desde_int, hasta_int)
+                    self._log(f"Rango aplicado [{desde_str or '1'}:{hasta_str or 'fin'}]: {filas_antes_rango} -> {len(df_trabajo)} filas")
+                except ValueError:
+                    self._log(f"⚠ Rango invalido ('{desde_str}', '{hasta_str}'), se ignora.")
 
             def _batch_progress(completados: int, total: int) -> None:
                 # Actualiza barra de progreso desde el hilo principal
