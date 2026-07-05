@@ -808,10 +808,9 @@ class App(tk.Tk):
             self.prioridad_var.set(col_var_local.get())
             self.valor_filtro_var.set(valor_var_local.get())
             if col_var_local.get() and col_var_local.get() != "(ninguna)":
-                self.filtro_status_var.set(f"Filtro: {col_var_local.get()} = {valor_var_local.get()}")
+                self.filtro_status_var.set(f"🔎 Filtro activo: {col_var_local.get()} = {valor_var_local.get()}")
             else:
-                self.filtro_status_var.set("Sin filtro")
-            popup.destroy()
+                self.filtro_status_var.set("Sin filtro aplicado")
 
         def _cancelar():
             popup.destroy()
