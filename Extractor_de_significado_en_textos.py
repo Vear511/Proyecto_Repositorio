@@ -875,6 +875,7 @@ class App(tk.Tk):
             if desde_var_local.get().strip() or hasta_var_local.get().strip():
                 partes.append(f"filas [{desde_var_local.get().strip() or '1'}:{hasta_var_local.get().strip() or 'fin'}]")
             self.filtro_status_var.set("🔎 Filtro activo: " + " | ".join(partes) if partes else "Sin filtro aplicado")
+            popup.destroy()
 
         def _cancelar():
             popup.destroy()
