@@ -31,8 +31,8 @@ CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".clasificador_config.json")
 # Dimensiones fijas para los campos de entrada de una sola línea.
 # grid_propagate(False) en _uniform_frame hace que estos valores
 # se respeten aunque el contenido interior sea más pequeño o más grande.
-INPUT_H = 24   # altura en píxeles
-INPUT_W = 420  # ancho en píxeles
+INPUT_H = 34   # altura en píxeles
+INPUT_W = 560  # ancho en píxeles
 
 
 # ── Centinelas como Enum ─────────────────────────────────────────────────────
@@ -583,9 +583,9 @@ class App(tk.Tk):
         super().__init__()
         self.title("Extractor de significados en textos")
         self.resizable(True, True)
-        self.minsize(476, 600)
+        self.minsize(640, 760)
         self.configure(bg="#f0f4f8")
-        self._center_window(476, 600)
+        self._center_window(640, 760)
 
         # Estado interno
         self.df      = None   # DataFrame cargado desde el archivo seleccionado
@@ -636,8 +636,8 @@ class App(tk.Tk):
         INPUT  = "#eef2f7"  # Fondo de campos editables
 
         s.configure("TFrame",        background=CARD)
-        s.configure("TLabel",        background=CARD,  foreground=FG,  font=("Segoe UI", 8))
-        s.configure("Sub.TLabel",    background=CARD,  foreground=FG2, font=("Segoe UI", 7))
+        s.configure("TLabel",        background=CARD,  foreground=FG,  font=("Segoe UI", 11))
+        s.configure("Sub.TLabel",    background=CARD,  foreground=FG2, font=("Segoe UI", 10))
         s.configure("TCombobox",     fieldbackground=INPUT, foreground=FG,
                     background=INPUT, selectbackground=BLUE, selectforeground="#fff",
                     borderwidth=0)
@@ -645,16 +645,16 @@ class App(tk.Tk):
               fieldbackground=[("readonly", INPUT)],
               foreground=[("readonly", FG)])
         s.configure("Start.TButton", background=ORANGE, foreground="white",
-                    font=("Segoe UI", 9, "bold"), padding=(12, 5), borderwidth=0)
+                    font=("Segoe UI", 12, "bold"), padding=(12, 5), borderwidth=0)
         s.map("Start.TButton",
               background=[("active", "#c44412"), ("disabled", "#b0b8c4")])
         # Botón Detener: rojo, se habilita sólo mientras hay una extracción en curso
         s.configure("Stop.TButton",  background=RED, foreground="white",
-                    font=("Segoe UI", 9, "bold"), padding=(12, 5), borderwidth=0)
+                    font=("Segoe UI", 15, "bold"), padding=(12, 5), borderwidth=0)
         s.map("Stop.TButton",
               background=[("active", "#922b21"), ("disabled", "#b0b8c4")])
         s.configure("File.TButton",  background=BLUE, foreground="white",
-                    font=("Segoe UI", 7), padding=(5, 0), borderwidth=0)
+                    font=("Segoe UI", 10), padding=(5, 0), borderwidth=0)
         s.map("File.TButton",
               background=[("active", "#145080")])
         s.configure("TProgressbar",  troughcolor=BORDER, background=ORANGE,
@@ -875,6 +875,7 @@ class App(tk.Tk):
             if desde_var_local.get().strip() or hasta_var_local.get().strip():
                 partes.append(f"filas [{desde_var_local.get().strip() or '1'}:{hasta_var_local.get().strip() or 'fin'}]")
             self.filtro_status_var.set("🔎 Filtro activo: " + " | ".join(partes) if partes else "Sin filtro aplicado")
+            popup.destroy()
 
         def _cancelar():
             popup.destroy()
@@ -1427,8 +1428,9 @@ class App(tk.Tk):
                 self._guardar_resultado_completo(df_trabajo, nombre_base, carpeta)
 
         except Exception as e:
-            self._log(f"\n❌  Error: {e}")
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            mensaje_error = str(e)
+            self._log(f"\n❌  Error: {mensaje_error}")
+            self.after(0, lambda msg=mensaje_error: messagebox.showerror("Error", msg))
         finally:
             # Siempre restaurar la UI al estado inicial, haya éxito, parada o error
             self.after(0, self._finalizar)
