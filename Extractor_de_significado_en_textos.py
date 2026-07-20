@@ -1428,8 +1428,9 @@ class App(tk.Tk):
                 self._guardar_resultado_completo(df_trabajo, nombre_base, carpeta)
 
         except Exception as e:
-            self._log(f"\n❌  Error: {e}")
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            mensaje_error = str(e)
+            self._log(f"\n❌  Error: {mensaje_error}")
+            self.after(0, lambda msg=mensaje_error: messagebox.showerror("Error", msg))
         finally:
             # Siempre restaurar la UI al estado inicial, haya éxito, parada o error
             self.after(0, self._finalizar)
